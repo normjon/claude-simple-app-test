@@ -1,0 +1,32 @@
+# Staging environment — overrides for charts/user-app/values.yaml
+# image.tag is injected by the CI pipeline at deploy time; never set it here.
+
+replicaCount: 2
+
+podAntiAffinity:
+  enabled: true  # 2 replicas across 2 AZs — validates HA behaviour before prod
+
+env:
+  TABLE_NAME: app-users-staging
+  NODE_ENV: staging
+
+serviceAccount:
+  create: true
+  name: "user-app-sa"
+  annotations:
+    # Replace with the IRSA role ARN provisioned by the infra-repo for staging.
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/user-app-staging
+
+ingress:
+  enabled: true
+  basePath: user-app
+  groupName: platform-staging  # separate ALB per environment
+  scheme: internet-facing
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

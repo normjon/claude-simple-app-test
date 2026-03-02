@@ -1,0 +1,35 @@
+# Dev environment — overrides for charts/user-app/values.yaml
+# image.tag is injected by the CI pipeline at deploy time; never set it here.
+#
+# Single environment: uses the shared cluster, table, and IRSA role.
+# When dedicated dev infrastructure is provisioned, update TABLE_NAME,
+# the IRSA role ARN, and ingress.groupName to environment-specific values.
+
+replicaCount: 3
+
+podAntiAffinity:
+  enabled: true  # spread across AZs to exercise Karpenter provisioning
+
+env:
+  TABLE_NAME: app-users
+  NODE_ENV: development
+
+serviceAccount:
+  create: true
+  name: "user-app-sa"
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::096305373014:role/ex-claude-cloud-test-user-app
+
+ingress:
+  enabled: true
+  basePath: user-app
+  groupName: platform
+  scheme: internet-facing
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

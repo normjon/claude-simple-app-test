@@ -1,0 +1,32 @@
+# Production environment — overrides for charts/user-app/values.yaml
+# image.tag is injected by the CI pipeline at deploy time; never set it here.
+# All prod defaults match the base values.yaml; only env-specific values are listed here.
+
+replicaCount: 3
+
+podAntiAffinity:
+  enabled: true  # 1 pod per AZ across all 3 AZs
+
+env:
+  TABLE_NAME: app-users
+  NODE_ENV: production
+
+serviceAccount:
+  create: true
+  name: "user-app-sa"
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::096305373014:role/ex-claude-cloud-test-user-app
+
+ingress:
+  enabled: true
+  basePath: user-app
+  groupName: platform          # shared prod ALB IngressGroup
+  scheme: internet-facing
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

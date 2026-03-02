@@ -1,0 +1,32 @@
+# Test environment — overrides for charts/user-app/values.yaml
+# image.tag is injected by the CI pipeline at deploy time; never set it here.
+
+replicaCount: 1
+
+podAntiAffinity:
+  enabled: false  # only 1 replica in test; anti-affinity would prevent scheduling
+
+env:
+  TABLE_NAME: app-users-test
+  NODE_ENV: test
+
+serviceAccount:
+  create: true
+  name: "user-app-sa"
+  annotations:
+    # Replace with the IRSA role ARN provisioned by the infra-repo for test.
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/user-app-test
+
+ingress:
+  enabled: true
+  basePath: user-app
+  groupName: platform-test   # separate ALB per environment
+  scheme: internet-facing
+
+resources:
+  limits:
+    cpu: 250m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

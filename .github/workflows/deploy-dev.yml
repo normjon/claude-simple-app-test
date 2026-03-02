@@ -1,0 +1,81 @@
+name: Deploy to Dev
+
+# Triggers automatically on every merge to main.
+# Builds a new arm64 image tagged with the git SHA, pushes to ECR,
+# and deploys to the cluster using gitops-config/dev/values.yaml.
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REGISTRY: 096305373014.dkr.ecr.us-east-2.amazonaws.com
+  ECR_REPOSITORY: user-app
+  EKS_CLUSTER: ex-claude-cloud-test
+  NAMESPACE: default
+
+jobs:
+  build-and-deploy:
+    name: Build, Push, Deploy
+    runs-on: ubuntu-latest
+    environment: dev   # GitHub Environment — configures deployment tracking
+
+    permissions:
+      id-token: write  # required for OIDC
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: echo "TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push arm64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure kubectl
+        run: |
+          aws eks --region ${{ env.AWS_REGION }} \
+            update-kubeconfig --name ${{ env.EKS_CLUSTER }}
+
+      - name: Deploy
+        run: |
+          helm upgrade --install user-app ./charts/user-app \
+            -f gitops-config/dev/values.yaml \
+            --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
+            --set image.tag=${{ steps.tag.outputs.TAG }} \
+            --namespace ${{ env.NAMESPACE }} \
+            --wait \
+            --timeout 5m
+
+      - name: Smoke test
+        run: |
+          ALB=$(kubectl get ingress user-app \
+            -n ${{ env.NAMESPACE }} \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          curl --fail --retry 5 --retry-delay 10 \
+            "http://${ALB}/user-app/health"
