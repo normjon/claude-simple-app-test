@@ -60,7 +60,7 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 
 Create an IAM role that the GitHub Actions pipeline will assume via OIDC.
 
-**Trust policy** — restricted to this specific repository only:
+**Trust policy** — restricted to the `main` branch of this repository only:
 
 ```json
 {
@@ -74,11 +74,9 @@ Create an IAM role that the GitHub Actions pipeline will assume via OIDC.
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub":
-            "repo:normjon/claude-simple-app-test:*"
+            "repo:normjon/claude-simple-app-test:ref:refs/heads/main"
         }
       }
     }
@@ -142,7 +140,7 @@ resource "aws_eks_access_entry" "github_actions" {
 resource "aws_eks_access_policy_association" "github_actions" {
   cluster_name  = "ex-claude-cloud-test"
   principal_arn = aws_iam_role.github_actions.arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
 
   access_scope {
     type       = "namespace"
@@ -223,8 +221,8 @@ Please provide the following once complete so the application repo can be confir
 
 | Item | Value |
 |---|---|
-| GitHub Actions IAM Role ARN | `arn:aws:iam::096305373014:role/<role-name>` |
-| EKS access entry confirmed | yes / no |
-| `AWS_DEPLOY_ROLE_ARN` secret set in GitHub | yes / no |
-| `dev` GitHub Environment created | yes / no |
-| Branch protection on `main` enabled | yes / no |
+| GitHub Actions IAM Role ARN | `arn:aws:iam::096305373014:role/ex-claude-cloud-test-github-actions` |
+| EKS access entry confirmed | yes — AmazonEKSAdminPolicy, namespace `default` |
+| `AWS_DEPLOY_ROLE_ARN` secret set in GitHub | yes — updated 2026-03-02T16:21Z |
+| `dev` GitHub Environment created | yes — no approval gates |
+| Branch protection on `main` enabled | yes — 1 review required, Test & Lint check required, admins enforced |
