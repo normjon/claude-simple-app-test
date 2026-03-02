@@ -1,0 +1,58 @@
+replicaCount: 3
+
+strategy:
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
+
+image:
+  repository: user-app
+  tag: local
+  pullPolicy: Always
+
+serviceAccount:
+  create: true
+  name: "user-app-sa"
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::096305373014:role/ex-karpenter-user-app
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  basePath: user-app      # single source of truth — also injected as APP_BASE_PATH
+  groupName: platform
+  scheme: internet-facing
+
+env:
+  TABLE_NAME: app-users
+  NODE_ENV: production
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Pod Anti-Affinity to spread across AZs (triggers Karpenter)
+podAntiAffinity:
+  enabled: true
+
+livenessProbe:
+  httpGet:
+    path: /user-app/health
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /user-app/health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 5

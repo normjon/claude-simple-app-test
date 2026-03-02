@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: User Profile API
+  description: A simple Node.js application to demonstrate EKS Karpenter scaling.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: Unique ID generated for the user (Partition Key).
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Returns 200 OK for Kubernetes Liveness/Readiness probes.
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /users:
+    get:
+      summary: Search Users
+      description: >
+        Filters users by one or more table attributes using exact match (DynamoDB Scan).
+        Only the known table attributes `userId`, `email`, and `name` are accepted.
+        Each parameter must be a single scalar value — repeating a key (e.g. `?email=a&email=b`) is rejected.
+        Results are capped at 100 items per request.
+        Multiple filters are combined with AND.
+        Returns all users (up to the cap) when no query parameters are provided.
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Filter by userId (exact match).
+          schema:
+            type: string
+        - name: email
+          in: query
+          required: false
+          description: Filter by email address (exact match).
+          schema:
+            type: string
+        - name: name
+          in: query
+          required: false
+          description: Filter by name (exact match).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of matching users (or all users up to the cap if no filter supplied).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '400':
+          description: >
+            Bad request — unknown query parameter, or a parameter value supplied more than once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error (e.g. DynamoDB unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create User
+      description: Validates email format and writes user to DynamoDB.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's email address (must be valid format).
+                name:
+                  type: string
+                  description: Full name of the user.
+      responses:
+        '201':
+          description: User created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input (missing required field or bad email format).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error (e.g. DynamoDB unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{id}:
+    get:
+      summary: Get User Details
+      description: Retrieves user attributes from DynamoDB.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The userId (Partition Key).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User details found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error (e.g. DynamoDB unreachable).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+

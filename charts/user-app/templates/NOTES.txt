@@ -1,0 +1,16 @@
+User App has been deployed!
+
+To verify the deployment:
+
+1. Check pod status:
+   kubectl get pods -l "app.kubernetes.io/name={{ include "user-app.name" . }}"
+
+2. Check pod distribution across AZs (for Karpenter verification):
+   kubectl get pods -l "app.kubernetes.io/name={{ include "user-app.name" . }}" -o wide
+
+3. Test the health endpoint:
+   kubectl port-forward svc/{{ include "user-app.fullname" . }} 8080:{{ .Values.service.port }}
+   curl http://localhost:8080/health
+
+4. View logs:
+   kubectl logs -l "app.kubernetes.io/name={{ include "user-app.name" . }}" -f
